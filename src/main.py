@@ -1,15 +1,13 @@
 """
 Command line runner for the Music Recommender Simulation.
 
-Loads the song catalog from data/songs.csv, scores it against each sample
-listener profile in PROFILES, and prints the top 5 songs with the reasons
-behind each score.
+Loads the song catalog from data/songs.csv and asks which mode to run:
+regular scores it against each sample listener profile in PROFILES, and rag
+lets you describe what you want in plain text. Both print the top 5 songs with
+the reasons behind each score.
 
-Run with: python -m src.main
-Or describe what you want in plain text (RAG mode): python -m src.main --rag
+Run with: python -m src.main, then pick a mode
 """
-
-import argparse
 
 from src.knowledge import load_knowledge
 from src.recommender import Recommender
@@ -76,19 +74,8 @@ def run_rag(songs) -> None:
         print_recommendations(Recommender.recommend(profile, songs, k=5))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Music Recommender Simulation")
-    parser.add_argument("--rag", action="store_true",
-                        help="describe what you want in plain text instead of using sample profiles")
-    args = parser.parse_args()
-
-    songs = Recommender.load_songs("data/songs.csv")
-    print(f"Loaded {len(songs)} songs from data/songs.csv")
-
-    if args.rag:
-        run_rag(songs)
-        return
-
+def run_regular(songs) -> None:
+    """Score the catalog against each sample profile and print the top 5 for each."""
     for name, user_prefs in PROFILES.items():
         recommendations = Recommender.recommend(user_prefs, songs, k=5)
 
@@ -96,6 +83,40 @@ def main() -> None:
         print(f"\n{name}")
         print(f"User profile: {profile}")
         print_recommendations(recommendations)
+
+
+def choose_mode() -> str:
+    """Ask which mode to run; returns 'regular' or 'rag', or '' to quit."""
+    while True:
+        print("\nWhich mode do you want?")
+        print("  1) regular - sample listener profiles")
+        print("  2) rag     - describe what you want in plain text")
+        print("  3) llm     - coming soon")
+        try:
+            choice = input("Choice> ").strip().lower()
+        except EOFError:
+            return ""
+        if choice in ("1", "regular"):
+            return "regular"
+        if choice in ("2", "rag"):
+            return "rag"
+        if choice in ("3", "llm"):
+            print("LLM mode isn't built yet. Pick regular or rag for now.")
+        elif choice in ("", "q"):
+            return ""
+        else:
+            print("Please enter 1, 2 or 3.")
+
+
+def main() -> None:
+    songs = Recommender.load_songs("data/songs.csv")
+    print(f"Loaded {len(songs)} songs from data/songs.csv")
+
+    mode = choose_mode()
+    if mode == "regular":
+        run_regular(songs)
+    elif mode == "rag":
+        run_rag(songs)
 
 
 if __name__ == "__main__":
