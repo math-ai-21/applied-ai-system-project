@@ -5,6 +5,7 @@ GEMINI_MODEL to pick the model). Any problem (no key, network error, empty
 reply) raises LLMUnavailable so callers can fall back to the retrieval-only output.
 """
 
+import json
 import os
 
 from dotenv import load_dotenv
@@ -53,3 +54,41 @@ def build_rag_prompt(query, results, recommendations) -> str:
         f"Recommended songs (already ranked, keep this order):\n{songs}\n\n"
         "In under 120 words, explain why these songs fit the request, citing the guides."
     )
+
+
+def build_llm_only_prompt(query, songs) -> str:
+    """Build the prompt for LLM-only mode: the request plus the catalog to choose from."""
+    catalog = "\n".join(
+        f"- {s['title']} by {s['artist']} | genre: {s['genre']} | mood: {s['mood']} "
+        f"| energy: {s['energy']} | tags: {', '.join(s['mood_tags'])}"
+        for s in songs
+    )
+    return (
+        "You are a music recommendation assistant. Pick up to 5 songs for the request, "
+        "ONLY from the catalog below, using the exact titles. Reply with JSON only: a list "
+        'of objects like {"title": "...", "reason": "one sentence"}, best match first.\n\n'
+        f"User request: {query}\n\nCatalog:\n{catalog}"
+    )
+
+
+def parse_llm_picks(reply, songs, limit=5):
+    """Turn Gemini's JSON reply into ([(song, reason), ...], ignored_titles).
+
+    Titles not in the catalog are ignored, so the LLM can't recommend songs the app doesn't have.
+    """
+    text = reply.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        items = json.loads(text)
+        titles = [(item["title"], item.get("reason", "")) for item in items]
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        raise LLMUnavailable("could not read Gemini's reply as a list of songs") from exc
+
+    by_title = {s["title"].lower(): s for s in songs}
+    picks, ignored = [], []
+    for title, reason in titles:
+        song = by_title.get(str(title).lower())
+        if song is None:
+            ignored.append(str(title))
+        elif all(song is not picked for picked, _ in picks):
+            picks.append((song, reason))
+    return picks[:limit], ignored

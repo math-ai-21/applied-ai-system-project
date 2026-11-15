@@ -5,13 +5,16 @@ Loads the song catalog from data/songs.csv and asks which mode to run:
 samples scores it against each sample listener profile in PROFILES, retrieval
 lets you describe what you want in plain text and matches it against the
 knowledge base, and rag does the same and adds a Gemini answer grounded in what
-was retrieved. All of them print the top 5 songs with the reasons behind each score.
+was retrieved. Those three print the top 5 songs with the reasons behind each score.
+llm-only skips retrieval: Gemini picks songs from the catalog using its own knowledge.
 
 Run with: python -m src.main, then pick a mode
 """
 
 from src.knowledge import load_knowledge
-from src.llm import LLMUnavailable, build_rag_prompt, generate
+from src.llm import (
+    LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
+)
 from src.recommender import Recommender
 from src.retriever import Retriever, build_profile
 
@@ -54,6 +57,20 @@ def print_recommendations(recommendations) -> None:
             print(f"       - {reason}")
 
 
+def ask_query():
+    """Ask for a query; returns None to quit. Re-asks if the query is too long."""
+    while True:
+        try:
+            query = input("\nQuery> ").strip()
+        except EOFError:
+            return None
+        if not query:
+            return None
+        if len(query) <= MAX_QUERY_CHARS:
+            return query
+        print(f"Query too long ({len(query)} characters, max {MAX_QUERY_CHARS}). Please shorten it.")
+
+
 def run_query_loop(songs, use_llm: bool) -> None:
     """Ask for plain-text queries until a blank line: retrieve, build a profile, recommend.
 
@@ -64,15 +81,9 @@ def run_query_loop(songs, use_llm: bool) -> None:
     print(f"{label} mode: describe what you want to hear (blank line to quit).")
     llm_calls = 0
     while True:
-        try:
-            query = input("\nQuery> ").strip()
-        except EOFError:
+        query = ask_query()
+        if query is None:
             break
-        if not query:
-            break
-        if len(query) > MAX_QUERY_CHARS:
-            print(f"Query too long ({len(query)} characters, max {MAX_QUERY_CHARS}). Please shorten it.")
-            continue
 
         results = retriever.retrieve(query)
         if not results:
@@ -99,6 +110,33 @@ def run_query_loop(songs, use_llm: bool) -> None:
         print_recommendations(recommendations)
 
 
+def run_llm_only(songs) -> None:
+    """Ask Gemini to pick songs from the catalog using its own knowledge. No retrieval."""
+    print("LLM-only mode: describe what you want to hear (blank line to quit).")
+    llm_calls = 0
+    while True:
+        query = ask_query()
+        if query is None:
+            break
+        if llm_calls >= MAX_LLM_CALLS:
+            print(f"Reached the limit of {MAX_LLM_CALLS} Gemini calls this run.")
+            break
+        llm_calls += 1
+        try:
+            picks, ignored = parse_llm_picks(generate(build_llm_only_prompt(query, songs)), songs)
+        except LLMUnavailable as exc:
+            print(f"LLM unavailable ({exc}).")
+            continue
+        if ignored:
+            print(f"Ignored {len(ignored)} title(s) not in the catalog: {', '.join(ignored)}")
+        if not picks:
+            print("Gemini didn't name any songs from the catalog.")
+            continue
+        print("LLM-only picks:")
+        for rank, (song, reason) in enumerate(picks, start=1):
+            print(f"  {rank}. {song['title']} by {song['artist']}\n       - {reason}")
+
+
 def run_regular(songs) -> None:
     """Score the catalog against each sample profile and print the top 5 for each."""
     for name, user_prefs in PROFILES.items():
@@ -111,13 +149,13 @@ def run_regular(songs) -> None:
 
 
 def choose_mode() -> str:
-    """Ask which mode to run; returns 'samples', 'retrieval' or 'rag', or '' to quit."""
+    """Ask which mode to run; returns 'samples', 'retrieval', 'rag' or 'llm-only', or '' to quit."""
     while True:
         print("\nWhich mode do you want?")
         print("  1) samples   - sample listener profiles")
         print("  2) retrieval - describe what you want; matched against the knowledge base")
         print("  3) rag       - retrieval, plus a Gemini answer grounded in it")
-        print("  4) llm-only  - coming soon")
+        print("  4) llm-only  - Gemini picks from the catalog, no retrieval")
         try:
             choice = input("Choice> ").strip().lower()
         except EOFError:
@@ -129,8 +167,8 @@ def choose_mode() -> str:
         if choice in ("3", "rag"):
             return "rag"
         if choice in ("4", "llm-only", "llm"):
-            print("LLM-only mode isn't built yet. Pick another mode for now.")
-        elif choice in ("", "q"):
+            return "llm-only"
+        if choice in ("", "q"):
             return ""
         else:
             print("Please enter 1, 2, 3 or 4.")
@@ -147,6 +185,8 @@ def main() -> None:
         run_query_loop(songs, use_llm=False)
     elif mode == "rag":
         run_query_loop(songs, use_llm=True)
+    elif mode == "llm-only":
+        run_llm_only(songs)
 
 
 if __name__ == "__main__":

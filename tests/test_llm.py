@@ -1,7 +1,9 @@
 import pytest
 
 from src import llm
-from src.llm import LLMUnavailable, build_rag_prompt, generate
+from src.llm import (
+    LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
+)
 
 
 class FakeResponse:
@@ -74,3 +76,48 @@ def test_rag_prompt_has_query_guides_songs_in_order_and_grounding_rule():
 def test_rag_prompt_handles_no_retrieved_guides():
     query, _, recommendations = sample_inputs()
     assert "music for studying" in build_rag_prompt(query, [], recommendations)
+
+
+CATALOG = [
+    {"title": "Focus Flow", "artist": "A", "genre": "lofi", "mood": "focused", "energy": 0.4, "mood_tags": ["dreamy"]},
+    {"title": "Library Rain", "artist": "B", "genre": "lofi", "mood": "chill", "energy": 0.35, "mood_tags": []},
+]
+
+
+def test_llm_only_prompt_has_query_and_catalog_songs():
+    prompt = build_llm_only_prompt("music for studying", CATALOG)
+    assert "music for studying" in prompt
+    assert "Focus Flow by A" in prompt and "Library Rain by B" in prompt
+
+
+def test_parse_picks_returns_matching_songs_in_order():
+    reply = '[{"title": "Library Rain", "reason": "calm"}, {"title": "Focus Flow", "reason": "steady"}]'
+    picks, ignored = parse_llm_picks(reply, CATALOG)
+    assert [(song["title"], reason) for song, reason in picks] == [("Library Rain", "calm"), ("Focus Flow", "steady")]
+    assert ignored == []
+
+
+def test_parse_picks_ignores_titles_not_in_catalog():
+    reply = '[{"title": "thank u, next", "reason": "x"}, {"title": "Focus Flow", "reason": "y"}]'
+    picks, ignored = parse_llm_picks(reply, CATALOG)
+    assert [song["title"] for song, _ in picks] == ["Focus Flow"]
+    assert ignored == ["thank u, next"]
+
+
+def test_parse_picks_ignores_capitalization_and_code_fences():
+    reply = '```json\n[{"title": "focus flow", "reason": "y"}]\n```'
+    picks, _ = parse_llm_picks(reply, CATALOG)
+    assert [song["title"] for song, _ in picks] == ["Focus Flow"]
+
+
+def test_parse_picks_rejects_non_json():
+    with pytest.raises(LLMUnavailable):
+        parse_llm_picks("Sure! Try Focus Flow.", CATALOG)
+
+
+def test_parse_picks_collapses_duplicates_and_caps_the_list():
+    songs = [{"title": f"S{i}", "artist": "A", "genre": "g", "mood": "m", "energy": 0.5, "mood_tags": []} for i in range(8)]
+    titles = ["S0", "S0"] + [f"S{i}" for i in range(1, 8)]
+    reply = "[" + ", ".join(f'{{"title": "{t}"}}' for t in titles) + "]"
+    picks, _ = parse_llm_picks(reply, songs, limit=5)
+    assert [song["title"] for song, _ in picks] == ["S0", "S1", "S2", "S3", "S4"]
