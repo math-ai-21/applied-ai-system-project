@@ -1,0 +1,41 @@
+flowchart LR
+    subgraph Input
+        U([User query or task list])
+        KB[(Knowledge base<br/>46 entries)]
+        SONGS[(Song catalog<br/>18 songs)]
+    end
+
+    subgraph Process
+        G1{{"Input guardrails<br/>query length, task limit,<br/>Gemini call cap"}}
+        R["Retriever<br/>TF-IDF + stemmer"]
+        P["Profile builder"]
+        REC["Recommender<br/>scores and ranks songs"]
+        LLM["Gemini<br/>explains the picks<br/>(LLM-only mode skips retrieval)"]
+        G2{{"Output guardrails<br/>catalog-only picks,<br/>fallback if Gemini fails"}}
+    end
+
+    subgraph Output
+        OUT["Ranked songs + score reasons<br/>+ Gemini answer"]
+        LOG[("logs/app.log")]
+    end
+
+    subgraph Checks["Human and test checks"]
+        T["pytest: 85 automated tests<br/>retriever, profile, guardrails,<br/>prompts, Gemini with a fake client"]
+        H1["Human: reads the retrieved entries,<br/>score reasons and answer<br/>shown in the app"]
+        H2["Human: reviews the log and the<br/>evaluation queries"]
+    end
+
+    U --> G1 --> R
+    KB --> R
+    R --> P --> REC
+    SONGS --> REC
+    REC --> LLM --> G2 --> OUT
+    REC -. "Gemini unavailable" .-> OUT
+    OUT --> H1
+    OUT -.-> LOG --> H2
+    H1 -. "rephrase the query" .-> U
+    T -.-> R
+    T -.-> P
+    T -.-> REC
+    T -.-> G1
+    T -.-> G2
