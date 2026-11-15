@@ -35,3 +35,21 @@ def generate(prompt: str) -> str:
     if not text or not text.strip():
         raise LLMUnavailable("Gemini returned an empty reply")
     return text.strip()
+
+
+def build_rag_prompt(query, results, recommendations) -> str:
+    """Build the prompt for RAG mode: the user's request, the retrieved guides, and the ranked songs."""
+    guides = "\n".join(f"- {entry['name']}: {entry['text']}" for entry, _ in results)
+    songs = "\n".join(
+        f"{rank}. {song['title']} by {song['artist']} ({song['genre']}, {song['mood']}) - {reasons}"
+        for rank, (song, _, reasons) in enumerate(recommendations, start=1)
+    )
+    return (
+        "You are a music recommendation assistant. Use ONLY the guides and songs below. "
+        "Do not add songs or facts that are not listed. If the guides don't cover part of "
+        "the request, say so.\n\n"
+        f"User request: {query}\n\n"
+        f"Retrieved guides:\n{guides}\n\n"
+        f"Recommended songs (already ranked, keep this order):\n{songs}\n\n"
+        "In under 120 words, explain why these songs fit the request, citing the guides."
+    )

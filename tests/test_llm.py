@@ -1,7 +1,7 @@
 import pytest
 
 from src import llm
-from src.llm import LLMUnavailable, generate
+from src.llm import LLMUnavailable, build_rag_prompt, generate
 
 
 class FakeResponse:
@@ -51,3 +51,26 @@ def test_empty_reply_raises(monkeypatch):
     monkeypatch.setattr(llm.genai, "Client", fake_client(reply="   "))
     with pytest.raises(LLMUnavailable, match="empty"):
         generate("hi")
+
+
+def sample_inputs():
+    entry = {"name": "studying and deep focus", "text": "Calm, steady, mostly instrumental music."}
+    songs = [
+        ({"title": "Focus Flow", "artist": "A", "genre": "lofi", "mood": "focused"}, 0.9, "energy match"),
+        ({"title": "Library Rain", "artist": "B", "genre": "lofi", "mood": "chill"}, 0.8, "mood match"),
+    ]
+    return "music for studying", [(entry, 0.3)], songs
+
+
+def test_rag_prompt_has_query_guides_songs_in_order_and_grounding_rule():
+    query, results, recommendations = sample_inputs()
+    prompt = build_rag_prompt(query, results, recommendations)
+    assert "music for studying" in prompt
+    assert "Calm, steady, mostly instrumental music." in prompt
+    assert prompt.index("Focus Flow") < prompt.index("Library Rain")
+    assert "ONLY" in prompt
+
+
+def test_rag_prompt_handles_no_retrieved_guides():
+    query, _, recommendations = sample_inputs()
+    assert "music for studying" in build_rag_prompt(query, [], recommendations)
