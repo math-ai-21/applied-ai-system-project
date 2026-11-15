@@ -4,7 +4,7 @@ import pytest
 
 from src.knowledge import load_knowledge
 from src.recommender import Recommender
-from src.retriever import MAX_MOOD_TAGS, Retriever, build_profile
+from src.retriever import MAX_MOOD_TAGS, Retriever, build_profile, plan_day
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 KNOWLEDGE_JSON = DATA_DIR / "knowledge_base.json"
@@ -114,3 +114,25 @@ def test_study_profile_recommends_a_calm_song(retriever):
     songs = Recommender.load_songs(str(SONGS_CSV))
     top_song, _, _ = Recommender.recommend(profile, songs, k=1)[0]
     assert top_song["energy"] < 0.6
+
+
+def plan_for(retriever, tasks):
+    return plan_day(tasks, retriever, Recommender.load_songs(str(SONGS_CSV)))
+
+
+def test_plan_gives_each_task_a_different_song(retriever):
+    plan = plan_for(retriever, ["studying for an exam", "morning workout at the gym", "winding down before sleep"])
+    ids = [item["pick"][0]["id"] for item in plan]
+    assert len(ids) == 3 and len(set(ids)) == 3
+
+
+def test_plan_does_not_repeat_a_song_for_identical_tasks(retriever):
+    plan = plan_for(retriever, ["studying for an exam", "studying for an exam"])
+    assert plan[0]["pick"][0]["id"] != plan[1]["pick"][0]["id"]
+
+
+def test_plan_task_with_no_match_gets_no_song(retriever):
+    plan = plan_for(retriever, ["xyzzy", "studying for an exam"])
+    assert plan[0]["pick"] is None and plan[0]["results"] == []
+    assert plan[1]["pick"] is not None
+    assert [item["task"] for item in plan] == ["xyzzy", "studying for an exam"]

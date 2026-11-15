@@ -68,7 +68,9 @@ def build_llm_only_prompt(query, songs) -> str:
     )
     return (
         "You are a music recommendation assistant. Pick up to 5 songs for the request, "
-        "ONLY from the catalog below, using the exact titles. Reply with JSON only: a list "
+        "ONLY from the catalog below, using the exact titles. Always give the closest matches, "
+        "even if none fit well, and say so in the reason; never return an empty list. "
+        "Reply with JSON only: a list "
         'of objects like {"title": "...", "reason": "one sentence"}, best match first.\n\n'
         f"User request: {query}\n\nCatalog:\n{catalog}"
     )
@@ -88,3 +90,25 @@ def parse_llm_picks(reply, songs, limit=5):
         raise LLMUnavailable("could not read Gemini's reply as a list of songs") from exc
 
     return keep_catalog_songs(titles, songs, limit)
+
+
+def build_plan_prompt(plan) -> str:
+    """Build the prompt for the day-plan note: each task with its retrieved guides and chosen song."""
+    blocks = []
+    for item in plan:
+        if item["pick"] is None:
+            continue
+        song = item["pick"][0]
+        guides = "; ".join(f"{entry['name']}: {entry['text']}" for entry, _ in item["results"])
+        blocks.append(
+            f"Task: {item['task']}\nGuides: {guides}\n"
+            f"Song: {song['title']} by {song['artist']} ({song['genre']}, {song['mood']})"
+        )
+    # GUARDRAIL 6, grounding instruction: tell the model to use only what was retrieved.
+    return (
+        "You are a music assistant planning a listening playlist for someone's day. Use ONLY the "
+        "guides and songs below. Do not add songs or facts that are not listed. For each task, say "
+        "in one sentence why its song fits, citing the guide.\n\n"
+        + "\n\n".join(blocks)
+        + "\n\nEnd with one sentence on the overall mood of the day."
+    )

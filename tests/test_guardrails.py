@@ -1,4 +1,6 @@
-from src.guardrails import MAX_LLM_CALLS, MAX_QUERY_CHARS, CallBudget, keep_catalog_songs, query_too_long
+from src.guardrails import (
+    MAX_LLM_CALLS, MAX_QUERY_CHARS, MAX_TASKS, CallBudget, keep_catalog_songs, limit_tasks, query_too_long,
+)
 
 CATALOG = [
     {"title": "Focus Flow"},
@@ -33,3 +35,18 @@ def test_keep_catalog_songs_ignores_case_collapses_duplicates_and_caps():
     items = [("focus flow", "a"), ("Focus Flow", "b"), ("Library Rain", "c")]
     picks, _ = keep_catalog_songs(items, CATALOG, limit=1)
     assert [song["title"] for song, _ in picks] == ["Focus Flow"]
+
+
+def test_limit_tasks_splits_lines_and_drops_blanks():
+    assert limit_tasks("study\n\n  gym  \n") == (["study", "gym"], 0)
+
+
+def test_limit_tasks_keeps_only_the_first_max_tasks_and_counts_the_rest():
+    text = "\n".join(f"task {i}" for i in range(MAX_TASKS + 3))
+    tasks, dropped = limit_tasks(text)
+    assert tasks == [f"task {i}" for i in range(MAX_TASKS)]
+    assert dropped == 3
+
+
+def test_limit_tasks_on_empty_text():
+    assert limit_tasks("  \n \n") == ([], 0)

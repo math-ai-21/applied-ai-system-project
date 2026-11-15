@@ -2,7 +2,7 @@ import pytest
 
 from src import llm
 from src.llm import (
-    LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
+    LLMUnavailable, build_llm_only_prompt, build_plan_prompt, build_rag_prompt, generate, parse_llm_picks,
 )
 
 
@@ -88,6 +88,7 @@ def test_llm_only_prompt_has_query_and_catalog_songs():
     prompt = build_llm_only_prompt("music for studying", CATALOG)
     assert "music for studying" in prompt
     assert "Focus Flow by A" in prompt and "Library Rain by B" in prompt
+    assert "never return an empty list" in prompt
 
 
 def test_parse_picks_returns_matching_songs_in_order():
@@ -121,3 +122,16 @@ def test_parse_picks_collapses_duplicates_and_caps_the_list():
     reply = "[" + ", ".join(f'{{"title": "{t}"}}' for t in titles) + "]"
     picks, _ = parse_llm_picks(reply, songs, limit=5)
     assert [song["title"] for song, _ in picks] == ["S0", "S1", "S2", "S3", "S4"]
+
+
+def test_plan_prompt_has_each_task_and_song_and_skips_unmatched_tasks():
+    entry = {"name": "studying and deep focus", "text": "Calm, steady music."}
+    plan = [
+        {"task": "write my essay", "results": [(entry, 0.3)],
+         "pick": ({"title": "Focus Flow", "artist": "A", "genre": "lofi", "mood": "focused"}, 0.9, "")},
+        {"task": "xyzzy", "results": [], "pick": None},
+    ]
+    prompt = build_plan_prompt(plan)
+    assert "write my essay" in prompt and "Calm, steady music." in prompt and "Focus Flow by A" in prompt
+    assert "xyzzy" not in prompt
+    assert "ONLY" in prompt

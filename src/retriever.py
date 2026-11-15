@@ -99,3 +99,18 @@ def recommend_from_query(query, retriever, songs, k=5):
         return results, {}, []
     profile = build_profile(results)
     return results, profile, Recommender.recommend(profile, songs, k=k)
+
+
+def plan_day(tasks, retriever, songs):
+    """Pick one song per task: the best-ranked song not already used for an earlier task.
+
+    Returns [{"task", "results", "pick"}], where pick is (song, score, reasons) or None if nothing matched.
+    """
+    used, plan = set(), []
+    for task in tasks:
+        results, _, ranked = recommend_from_query(task, retriever, songs, k=len(songs))
+        pick = next((item for item in ranked if item[0]["id"] not in used), None)
+        if pick:
+            used.add(pick[0]["id"])
+        plan.append({"task": task, "results": results, "pick": pick})
+    return plan
