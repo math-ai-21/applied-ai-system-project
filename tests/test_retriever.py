@@ -4,7 +4,7 @@ import pytest
 
 from src.knowledge import load_knowledge
 from src.recommender import Recommender
-from src.retriever import MAX_MOOD_TAGS, Retriever, build_profile, plan_day
+from src.retriever import MAX_MOOD_TAGS, Retriever, build_profile, plan_day, stem
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 KNOWLEDGE_JSON = DATA_DIR / "knowledge_base.json"
@@ -136,3 +136,28 @@ def test_plan_task_with_no_match_gets_no_song(retriever):
     assert plan[0]["pick"] is None and plan[0]["results"] == []
     assert plan[1]["pick"] is not None
     assert [item["task"] for item in plan] == ["xyzzy", "studying for an exam"]
+
+
+def test_stem_matches_word_forms():
+    assert stem("running") == stem("run") == stem("runs") == "run"
+    assert stem("baking") == stem("bake") == stem("baked")
+    assert stem("sing") == "sing" and stem("bus") == "bus"  # short words are left alone
+
+
+@pytest.mark.parametrize("query,entry_id", [
+    ("run in the park", "scn-outdoors"),
+    ("jumping", "scn-outdoors"),
+    ("cleaning the house", "scn-chores"),
+    ("do my laundry", "scn-chores"),
+    ("cooking dinner", "scn-cooking"),
+    ("baking cookies", "scn-cooking"),
+    ("walk the dog", "scn-commute"),
+    ("commuting to work", "scn-commute"),
+])
+def test_everyday_tasks_find_their_entry(retriever, query, entry_id):
+    assert top_ids(retriever, query)[0] == entry_id
+
+
+@pytest.mark.parametrize("query", ["i want something good", "thank u, next", "play some music"])
+def test_vague_or_filler_queries_return_nothing(retriever, query):
+    assert retriever.retrieve(query) == []

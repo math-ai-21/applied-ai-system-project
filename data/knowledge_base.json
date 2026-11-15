@@ -132,6 +132,54 @@
     "mood_tags": ["nostalgic", "reflective", "melancholic"]
   },
   {
+    "id": "scn-outdoors",
+    "kind": "scenario",
+    "name": "outdoor exercise, jogging and sports",
+    "text": "Going for a run or a jog in the park, jumping rope, jumping jacks, walking, hiking, cycling, biking, swimming, playing sports like soccer or basketball, stretching and yoga outside, getting fresh air and exercise. Upbeat, steady, motivating music with a bouncy tempo, medium-high energy and a positive feeling. Pop, indie pop, reggae and EDM keep a good rhythm.",
+    "genres": ["pop", "indie pop", "reggae", "edm"],
+    "moods": ["energetic", "uplifting", "happy"],
+    "energy": 0.8,
+    "acousticness": 0.2,
+    "valence": 0.82,
+    "mood_tags": ["euphoric", "hopeful"]
+  },
+  {
+    "id": "scn-chores",
+    "kind": "scenario",
+    "name": "chores, cleaning and tidying up",
+    "text": "Cleaning the house, doing laundry, washing dishes, vacuuming, sweeping, tidying and organizing a room, folding clothes, taking out the trash, yard work and other housework. Upbeat, steady, easy-to-work-to music with a light groove, medium energy and a cheerful feeling. Pop, indie pop, reggae and r&b make the time pass.",
+    "genres": ["pop", "indie pop", "reggae", "r&b"],
+    "moods": ["happy", "uplifting", "energetic"],
+    "energy": 0.65,
+    "acousticness": 0.3,
+    "valence": 0.8,
+    "mood_tags": ["hopeful", "euphoric"]
+  },
+  {
+    "id": "scn-cooking",
+    "kind": "scenario",
+    "name": "cooking, baking and making dinner",
+    "text": "Cooking dinner, baking cookies or bread, preparing a meal, making breakfast or lunch, chopping vegetables, grilling, hanging out in the kitchen, family meals at home. Warm, relaxed, groovy music with a mid tempo, medium energy and a friendly feeling. Jazz, folk, r&b and country suit the kitchen.",
+    "genres": ["jazz", "folk", "r&b", "country"],
+    "moods": ["relaxed", "happy", "romantic"],
+    "energy": 0.45,
+    "acousticness": 0.7,
+    "valence": 0.72,
+    "mood_tags": ["nostalgic", "hopeful"]
+  },
+  {
+    "id": "scn-commute",
+    "kind": "scenario",
+    "name": "commuting, walking and errands",
+    "text": "Commuting to work or school, riding the bus or train, driving to work, walking the dog, running errands, walking around town, grocery shopping, waiting around. Light, steady, easy-going music with a mid tempo, medium energy and a calm positive feeling. Indie pop, lofi, pop and synthwave keep you moving without distraction.",
+    "genres": ["indie pop", "lofi", "pop", "synthwave"],
+    "moods": ["chill", "uplifting", "focused"],
+    "energy": 0.55,
+    "acousticness": 0.4,
+    "valence": 0.65,
+    "mood_tags": ["dreamy", "hopeful"]
+  },
+  {
     "id": "gen-lofi",
     "kind": "genre",
     "name": "lofi",

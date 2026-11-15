@@ -23,6 +23,28 @@ from src.recommender import Recommender
 DEFAULT_MIN_SCORE = 0.15
 MAX_MOOD_TAGS = 3
 
+# Words that say nothing about what to play; ignoring them stops vague queries from matching
+# on filler. These are stemmed forms, so "wanting" and "songs" are covered too.
+GENERIC_WORDS = {"want", "good", "like", "song", "music", "play", "listen"}
+
+
+def stem(word: str) -> str:
+    """Trim common endings so 'running', 'runs' and 'run' match each other."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
+            word = word[: -len(suffix)]
+            break
+    if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiouls":
+        word = word[:-1]  # runn -> run
+    return word[:-1] if word.endswith("e") and len(word) > 3 else word  # bake, baking -> bak
+
+
+def _stemmed_words(text: str) -> List[str]:
+    """Split text into lowercase words, drop English stop words, stem the rest, drop generic words."""
+    split_and_filter = TfidfVectorizer(stop_words="english").build_analyzer()
+    stems = (stem(word) for word in split_and_filter(text))
+    return [word for word in stems if word not in GENERIC_WORDS]
+
 
 def entry_document(entry: Dict) -> str:
     """Return the searchable text for one knowledge entry."""
@@ -36,7 +58,7 @@ class Retriever:
     def __init__(self, entries: List[Dict], min_score: float = DEFAULT_MIN_SCORE):
         self.entries = entries
         self.min_score = min_score
-        self.vectorizer = TfidfVectorizer(stop_words="english", sublinear_tf=True)
+        self.vectorizer = TfidfVectorizer(analyzer=_stemmed_words, sublinear_tf=True)
         self.matrix = self.vectorizer.fit_transform(entry_document(e) for e in entries)
 
     def retrieve(self, query: str, k: int = 3) -> List[Tuple[Dict, float]]:
