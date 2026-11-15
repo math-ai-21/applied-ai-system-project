@@ -75,7 +75,6 @@ class Recommender:
     @staticmethod
     def load_songs(csv_path: str) -> List[Dict]:
         """Load songs from a CSV file as dicts, converting numeric columns to int/float."""
-        print(f"Loading songs from {csv_path}...")
         songs = []
         with open(csv_path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
@@ -88,7 +87,6 @@ class Recommender:
                     row["release_decade"] = int(row["release_decade"])
                     row["mood_tags"] = [t for t in row["mood_tags"].split("|") if t]
                 songs.append(row)
-        print(f"Loaded songs: " + str(len(songs)))
         return songs
 
     @staticmethod

@@ -1,12 +1,11 @@
 """
 Command line runner for the Music Recommender Simulation.
 
-This file helps you quickly run and test your recommender.
+Loads the song catalog from data/songs.csv, scores it against each sample
+listener profile in PROFILES, and prints the top 5 songs with the reasons
+behind each score.
 
-You will implement the functions in recommender.py:
-- load_songs
-- score_song
-- recommend
+Run with: python -m src.main
 """
 
 from src.recommender import Recommender
@@ -41,6 +40,7 @@ PROFILES = {
 
 def main() -> None:
     songs = Recommender.load_songs("data/songs.csv")
+    print(f"Loaded {len(songs)} songs from data/songs.csv")
 
     for name, user_prefs in PROFILES.items():
         recommendations = Recommender.recommend(user_prefs, songs, k=5)
