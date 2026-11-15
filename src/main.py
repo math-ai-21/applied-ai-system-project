@@ -17,7 +17,7 @@ from src.llm import (
     LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
 )
 from src.recommender import Recommender
-from src.retriever import Retriever, build_profile
+from src.retriever import Retriever, recommend_from_query
 
 
 PROFILES = {
@@ -83,7 +83,7 @@ def run_query_loop(songs, use_llm: bool) -> None:
         if query is None:
             break
 
-        results = retriever.retrieve(query)
+        results, profile, recommendations = recommend_from_query(query, retriever, songs)
         if not results:
             print("No knowledge entry matched. Try rephrasing, e.g. 'studying on a rainy day'.")
             continue
@@ -91,9 +91,7 @@ def run_query_loop(songs, use_llm: bool) -> None:
         print("Retrieved:")
         for entry, score in results:
             print(f"  - {entry['name']} ({entry['kind']}, similarity {score:.2f})")
-        profile = build_profile(results)
         print("Profile: " + ", ".join(f"{key}={value}" for key, value in profile.items()))
-        recommendations = Recommender.recommend(profile, songs, k=5)
 
         if use_llm:
             if not budget.try_use():  # GUARDRAIL 4, call cap
