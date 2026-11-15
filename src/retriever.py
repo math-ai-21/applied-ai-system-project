@@ -9,6 +9,7 @@ build_profile then turns the retrieved entries into a user_prefs dict that
 Recommender.recommend can score with, weighting each entry by its retrieval score.
 """
 
+import logging
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -17,6 +18,8 @@ from sklearn.metrics.pairwise import linear_kernel
 
 from src.knowledge import NUMERIC_FIELDS, REFERENCE_FIELDS
 from src.recommender import Recommender
+
+log = logging.getLogger(__name__)
 
 # GUARDRAIL 2, retrieval threshold: entries scoring below this are dropped, so a vague
 # or unrelated query returns no match instead of building a profile from a bad one.
@@ -118,8 +121,11 @@ def recommend_from_query(query, retriever, songs, k=5):
     """
     results = retriever.retrieve(query)
     if not results:
+        log.warning("no match for query=%r", query)
         return results, {}, []
     profile = build_profile(results)
+    log.info("query=%r -> %s", query, ", ".join(f"{e['id']} ({s:.2f})" for e, s in results))
+    log.info("profile=%s", profile)
     return results, profile, Recommender.recommend(profile, songs, k=k)
 
 

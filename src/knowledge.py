@@ -5,7 +5,10 @@ tags and target audio values) that later stages use to build a scoring profile.
 """
 
 import json
+import logging
 from typing import Dict, List
+
+log = logging.getLogger(__name__)
 
 KINDS = ("scenario", "genre", "mood", "reference")
 LIST_FIELDS = ("genres", "moods", "mood_tags")
@@ -40,4 +43,5 @@ def load_knowledge(json_path: str) -> List[Dict]:
         for field in NUMERIC_FIELDS:
             if not 0.0 <= entry[field] <= 1.0:
                 raise ValueError(f"Knowledge entry {entry['id']}: {field} must be 0-1")
+    log.info("loaded %d knowledge entries from %s", len(entries), json_path)
     return entries

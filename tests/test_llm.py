@@ -1,3 +1,4 @@
+import logging
 import pytest
 
 from src import llm
@@ -135,3 +136,29 @@ def test_plan_prompt_has_each_task_and_song_and_skips_unmatched_tasks():
     assert "write my essay" in prompt and "Calm, steady music." in prompt and "Focus Flow by A" in prompt
     assert "xyzzy" not in prompt
     assert "ONLY" in prompt
+
+
+def test_failed_call_is_logged_without_the_api_key(monkeypatch, caplog):
+    monkeypatch.setenv("GEMINI_API_KEY", "secret-test-key-123")
+    monkeypatch.setattr(llm.genai, "Client", fake_client(error=RuntimeError("bad key secret-test-key-123")))
+    with caplog.at_level(logging.INFO, logger="src.llm"):
+        with pytest.raises(LLMUnavailable):
+            generate("hi")
+    assert "gemini failed" in caplog.text
+    assert "secret-test-key-123" not in caplog.text
+    assert "***" in caplog.text
+
+
+def test_successful_call_logs_the_reply_length_but_not_the_reply(monkeypatch, caplog):
+    monkeypatch.setattr(llm.genai, "Client", fake_client(reply="a private reply"))
+    with caplog.at_level(logging.INFO, logger="src.llm"):
+        generate("a private prompt")
+    assert "reply_chars=15" in caplog.text
+    assert "a private reply" not in caplog.text and "a private prompt" not in caplog.text
+
+
+def test_unreadable_reply_is_logged(caplog):
+    with caplog.at_level(logging.WARNING, logger="src.llm"):
+        with pytest.raises(LLMUnavailable):
+            parse_llm_picks("Sure! Try Focus Flow.", CATALOG)
+    assert "could not read gemini's reply" in caplog.text

@@ -3,6 +3,8 @@
 Run with: streamlit run app.py
 """
 
+import logging
+
 import streamlit as st
 
 from src.guardrails import MAX_LLM_CALLS, MAX_TASKS, CallBudget, query_too_long, task_list_full
@@ -11,9 +13,13 @@ from src.llm import (
     LLMUnavailable, build_llm_only_prompt, build_plan_prompt, build_rag_prompt, generate,
     parse_llm_picks,
 )
+from src.log import setup_logging
 from src.main import PROFILES
 from src.recommender import Recommender
 from src.retriever import Retriever, plan_day, recommend_from_query
+
+setup_logging()
+log = logging.getLogger("src.app")
 
 st.set_page_config(page_title="Music Recommender", page_icon="🎵")
 
@@ -63,6 +69,7 @@ def show_query_tab(key, use_llm):
     query = ask_query(key)
     if query is None:
         return
+    log.info("tab=%s", key)
     results, profile, recommendations = recommend_from_query(query, retriever, songs)
     if not results:
         st.warning("No knowledge entry matched. Try rephrasing, e.g. 'studying on a rainy day'.")
@@ -91,6 +98,7 @@ def show_llm_only_tab():
     query = ask_query("llm_only")
     if query is None:
         return
+    log.info("tab=llm_only query=%r", query)
     if not budget.try_use():  # GUARDRAIL 4, call cap
         st.error(f"Reached the limit of {MAX_LLM_CALLS} Gemini calls this session.")
         return
@@ -143,6 +151,8 @@ def show_planner():
                 state.tasks.append({"id": state.next_id, "text": text})
                 state.next_id += 1
                 state.plan, state.plan_note = {}, None
+                if task_list_full(len(state.tasks)):
+                    log.info("planner task list reached the limit of %d", MAX_TASKS)
                 st.rerun()
 
     for task in list(state.tasks):
@@ -162,6 +172,7 @@ def show_planner():
                         f"(matched: {item['results'][0][0]['name']})")
 
     if state.tasks and st.button("Plan my day"):
+        log.info("tab=planner tasks=%d", len(state.tasks))
         items = plan_day([task["text"] for task in state.tasks], retriever, songs)
         state.plan = {task["id"]: item for task, item in zip(state.tasks, items)}
         state.plan_note = plan_note(items)

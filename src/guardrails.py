@@ -11,6 +11,10 @@ Index of every guardrail (search the code for "GUARDRAIL" to find each one):
   8. Task list limit            - here, task_list_full
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 MAX_QUERY_CHARS = 200
 MAX_LLM_CALLS = 5
 MAX_TASKS = 5
@@ -18,7 +22,10 @@ MAX_TASKS = 5
 
 def query_too_long(query) -> bool:
     """GUARDRAIL 3, query length: stop long input before it costs a Gemini call."""
-    return len(query) > MAX_QUERY_CHARS
+    too_long = len(query) > MAX_QUERY_CHARS
+    if too_long:
+        log.warning("query too long (%d characters, max %d)", len(query), MAX_QUERY_CHARS)
+    return too_long
 
 
 class CallBudget:
@@ -31,8 +38,10 @@ class CallBudget:
     def try_use(self) -> bool:
         """Count one call and return True, or return False if the budget is spent."""
         if self.used >= self.limit:
+            log.warning("gemini call cap reached (%d/%d)", self.used, self.limit)
             return False
         self.used += 1
+        log.info("gemini call %d/%d used", self.used, self.limit)
         return True
 
 
@@ -50,6 +59,8 @@ def keep_catalog_songs(items, songs, limit=5):
             ignored.append(str(title))
         elif all(song is not picked for picked, _ in picks):
             picks.append((song, reason))
+    if ignored:
+        log.warning("ignored titles not in the catalog: %s", ignored)
     return picks[:limit], ignored
 
 

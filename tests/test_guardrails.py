@@ -1,3 +1,4 @@
+import logging
 from src.guardrails import (
     MAX_LLM_CALLS, MAX_QUERY_CHARS, MAX_TASKS, CallBudget, keep_catalog_songs, query_too_long, task_list_full,
 )
@@ -45,3 +46,30 @@ def test_task_list_is_not_full_below_the_limit():
 def test_task_list_is_full_at_and_above_the_limit():
     assert task_list_full(MAX_TASKS)
     assert task_list_full(MAX_TASKS + 1)
+
+
+def test_too_long_query_is_logged(caplog):
+    with caplog.at_level(logging.WARNING, logger="src.guardrails"):
+        query_too_long("a" * (MAX_QUERY_CHARS + 1))
+    assert "query too long" in caplog.text
+
+
+def test_short_query_is_not_logged(caplog):
+    with caplog.at_level(logging.INFO, logger="src.guardrails"):
+        query_too_long("a short query")
+    assert caplog.text == ""
+
+
+def test_call_budget_logs_each_use_and_the_cap(caplog):
+    budget = CallBudget(limit=1)
+    with caplog.at_level(logging.INFO, logger="src.guardrails"):
+        budget.try_use()
+        budget.try_use()
+    assert "gemini call 1/1 used" in caplog.text
+    assert "gemini call cap reached" in caplog.text
+
+
+def test_ignored_catalog_titles_are_logged(caplog):
+    with caplog.at_level(logging.WARNING, logger="src.guardrails"):
+        keep_catalog_songs([("Not A Real Song", "x")], CATALOG)
+    assert "Not A Real Song" in caplog.text

@@ -11,13 +11,18 @@ llm-only skips retrieval: Gemini picks songs from the catalog using its own know
 Run with: python -m src.main, then pick a mode
 """
 
+import logging
+
 from src.guardrails import MAX_LLM_CALLS, MAX_QUERY_CHARS, CallBudget, query_too_long
 from src.knowledge import load_knowledge
 from src.llm import (
     LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
 )
+from src.log import setup_logging
 from src.recommender import Recommender
 from src.retriever import Retriever, recommend_from_query
+
+log = logging.getLogger("src.main")
 
 
 PROFILES = {
@@ -113,6 +118,7 @@ def run_llm_only(songs) -> None:
         query = ask_query()
         if query is None:
             break
+        log.info("llm-only query=%r", query)
         if not budget.try_use():  # GUARDRAIL 4, call cap
             print(f"Reached the limit of {MAX_LLM_CALLS} Gemini calls this run.")
             break
@@ -169,10 +175,12 @@ def choose_mode() -> str:
 
 
 def main() -> None:
+    setup_logging()
     songs = Recommender.load_songs("data/songs.csv")
     print(f"Loaded {len(songs)} songs from data/songs.csv")
 
     mode = choose_mode()
+    log.info("mode=%s", mode or "quit")
     if mode == "samples":
         run_regular(songs)
     elif mode == "retrieval":

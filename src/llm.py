@@ -6,7 +6,9 @@ reply) raises LLMUnavailable so callers can fall back to the retrieval-only outp
 """
 
 import json
+import logging
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
@@ -14,6 +16,8 @@ from google import genai
 from src.guardrails import keep_catalog_songs
 
 load_dotenv()
+
+log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
@@ -23,11 +27,27 @@ class LLMUnavailable(Exception):
 
 
 def generate(prompt: str) -> str:
-    """Send a prompt to Gemini and return its text reply."""
+    """Send a prompt to Gemini and return its text reply, logging the call (never the key or the reply)."""
+    start = time.monotonic()
+    try:
+        text = _call_gemini(prompt)
+    except LLMUnavailable as exc:
+        message = str(exc)[:200]
+        key = os.environ.get("GEMINI_API_KEY")
+        if key:
+            message = message.replace(key, "***")
+        log.warning("gemini failed: %s", message)
+        raise
+    log.info("gemini ok in %.1fs reply_chars=%d", time.monotonic() - start, len(text))
+    return text
+
+
+def _call_gemini(prompt: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise LLMUnavailable("GEMINI_API_KEY is not set")
     model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
+    log.info("gemini call model=%s prompt_chars=%d", model, len(prompt))
     try:
         # Keep a reference to the client: the SDK closes it when it is garbage collected.
         client = genai.Client(api_key=api_key)
@@ -87,6 +107,7 @@ def parse_llm_picks(reply, songs, limit=5):
         items = json.loads(text)
         titles = [(item["title"], item.get("reason", "")) for item in items]
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        log.warning("could not read gemini's reply as a list of songs")
         raise LLMUnavailable("could not read Gemini's reply as a list of songs") from exc
 
     return keep_catalog_songs(titles, songs, limit)
