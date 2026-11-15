@@ -21,6 +21,8 @@ def load_knowledge(json_path: str) -> List[Dict]:
     with open(json_path, encoding="utf-8") as f:
         entries = json.load(f)
 
+    # GUARDRAIL 1, knowledge base validation: refuse entries with missing fields,
+    # unknown kinds, duplicate ids or out-of-range numbers (see src/guardrails.py).
     seen_ids = set()
     for entry in entries:
         missing = [field for field in REQUIRED_FIELDS if field not in entry]

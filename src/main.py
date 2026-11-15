@@ -11,15 +11,13 @@ llm-only skips retrieval: Gemini picks songs from the catalog using its own know
 Run with: python -m src.main, then pick a mode
 """
 
+from src.guardrails import MAX_LLM_CALLS, MAX_QUERY_CHARS, CallBudget, query_too_long
 from src.knowledge import load_knowledge
 from src.llm import (
     LLMUnavailable, build_llm_only_prompt, build_rag_prompt, generate, parse_llm_picks,
 )
 from src.recommender import Recommender
 from src.retriever import Retriever, build_profile
-
-MAX_QUERY_CHARS = 200
-MAX_LLM_CALLS = 5
 
 
 PROFILES = {
@@ -66,7 +64,7 @@ def ask_query():
             return None
         if not query:
             return None
-        if len(query) <= MAX_QUERY_CHARS:
+        if not query_too_long(query):
             return query
         print(f"Query too long ({len(query)} characters, max {MAX_QUERY_CHARS}). Please shorten it.")
 
@@ -79,7 +77,7 @@ def run_query_loop(songs, use_llm: bool) -> None:
     retriever = Retriever(load_knowledge("data/knowledge_base.json"))
     label = "RAG" if use_llm else "Retrieval"
     print(f"{label} mode: describe what you want to hear (blank line to quit).")
-    llm_calls = 0
+    budget = CallBudget()
     while True:
         query = ask_query()
         if query is None:
@@ -98,14 +96,13 @@ def run_query_loop(songs, use_llm: bool) -> None:
         recommendations = Recommender.recommend(profile, songs, k=5)
 
         if use_llm:
-            if llm_calls >= MAX_LLM_CALLS:
+            if not budget.try_use():  # GUARDRAIL 4, call cap
                 print(f"\nReached the limit of {MAX_LLM_CALLS} Gemini answers this run; "
                       "showing retrieval results only.")
             else:
-                llm_calls += 1
                 try:
                     print("\nAnswer:\n" + generate(build_rag_prompt(query, results, recommendations)))
-                except LLMUnavailable as exc:
+                except LLMUnavailable as exc:  # GUARDRAIL 5, LLM-unavailable fallback
                     print(f"\nLLM unavailable ({exc}); showing retrieval results only.")
         print_recommendations(recommendations)
 
@@ -113,18 +110,17 @@ def run_query_loop(songs, use_llm: bool) -> None:
 def run_llm_only(songs) -> None:
     """Ask Gemini to pick songs from the catalog using its own knowledge. No retrieval."""
     print("LLM-only mode: describe what you want to hear (blank line to quit).")
-    llm_calls = 0
+    budget = CallBudget()
     while True:
         query = ask_query()
         if query is None:
             break
-        if llm_calls >= MAX_LLM_CALLS:
+        if not budget.try_use():  # GUARDRAIL 4, call cap
             print(f"Reached the limit of {MAX_LLM_CALLS} Gemini calls this run.")
             break
-        llm_calls += 1
         try:
             picks, ignored = parse_llm_picks(generate(build_llm_only_prompt(query, songs)), songs)
-        except LLMUnavailable as exc:
+        except LLMUnavailable as exc:  # GUARDRAIL 5, LLM-unavailable fallback
             print(f"LLM unavailable ({exc}).")
             continue
         if ignored:

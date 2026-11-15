@@ -11,6 +11,8 @@ import os
 from dotenv import load_dotenv
 from google import genai
 
+from src.guardrails import keep_catalog_songs
+
 load_dotenv()
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
@@ -45,6 +47,7 @@ def build_rag_prompt(query, results, recommendations) -> str:
         f"{rank}. {song['title']} by {song['artist']} ({song['genre']}, {song['mood']}) - {reasons}"
         for rank, (song, _, reasons) in enumerate(recommendations, start=1)
     )
+    # GUARDRAIL 6, grounding instruction: tell the model to use only what was retrieved.
     return (
         "You are a music recommendation assistant. Use ONLY the guides and songs below. "
         "Do not add songs or facts that are not listed. If the guides don't cover part of "
@@ -74,7 +77,8 @@ def build_llm_only_prompt(query, songs) -> str:
 def parse_llm_picks(reply, songs, limit=5):
     """Turn Gemini's JSON reply into ([(song, reason), ...], ignored_titles).
 
-    Titles not in the catalog are ignored, so the LLM can't recommend songs the app doesn't have.
+    Titles not in the catalog are ignored (guardrail 7), so the LLM can't recommend
+    songs the app doesn't have.
     """
     text = reply.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
@@ -83,12 +87,4 @@ def parse_llm_picks(reply, songs, limit=5):
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
         raise LLMUnavailable("could not read Gemini's reply as a list of songs") from exc
 
-    by_title = {s["title"].lower(): s for s in songs}
-    picks, ignored = [], []
-    for title, reason in titles:
-        song = by_title.get(str(title).lower())
-        if song is None:
-            ignored.append(str(title))
-        elif all(song is not picked for picked, _ in picks):
-            picks.append((song, reason))
-    return picks[:limit], ignored
+    return keep_catalog_songs(titles, songs, limit)

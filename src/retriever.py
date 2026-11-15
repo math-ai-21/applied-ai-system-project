@@ -17,6 +17,8 @@ from sklearn.metrics.pairwise import linear_kernel
 
 from src.knowledge import NUMERIC_FIELDS, REFERENCE_FIELDS
 
+# GUARDRAIL 2, retrieval threshold: entries scoring below this are dropped, so a vague
+# or unrelated query returns no match instead of building a profile from a bad one.
 DEFAULT_MIN_SCORE = 0.15
 MAX_MOOD_TAGS = 3
 
