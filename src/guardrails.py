@@ -8,7 +8,7 @@ Index of every guardrail (search the code for "GUARDRAIL" to find each one):
   5. LLM-unavailable fallback   - src/main.py, run_query_loop
   6. Grounding instruction      - src/llm.py, build_rag_prompt
   7. Catalog-only picks         - here, keep_catalog_songs
-  8. Task list limit            - here, limit_tasks
+  8. Task list limit            - here, task_list_full
 """
 
 MAX_QUERY_CHARS = 200
@@ -53,10 +53,6 @@ def keep_catalog_songs(items, songs, limit=5):
     return picks[:limit], ignored
 
 
-def limit_tasks(text):
-    """GUARDRAIL 8, task list limit: split text into tasks (one per line), keeping at most MAX_TASKS.
-
-    Returns (tasks, dropped_count).
-    """
-    tasks = [line.strip() for line in text.splitlines() if line.strip()]
-    return tasks[:MAX_TASKS], max(0, len(tasks) - MAX_TASKS)
+def task_list_full(count) -> bool:
+    """GUARDRAIL 8, task list limit: no more than MAX_TASKS tasks in a plan."""
+    return count >= MAX_TASKS

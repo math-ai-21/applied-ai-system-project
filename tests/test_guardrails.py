@@ -1,5 +1,5 @@
 from src.guardrails import (
-    MAX_LLM_CALLS, MAX_QUERY_CHARS, MAX_TASKS, CallBudget, keep_catalog_songs, limit_tasks, query_too_long,
+    MAX_LLM_CALLS, MAX_QUERY_CHARS, MAX_TASKS, CallBudget, keep_catalog_songs, query_too_long, task_list_full,
 )
 
 CATALOG = [
@@ -37,16 +37,11 @@ def test_keep_catalog_songs_ignores_case_collapses_duplicates_and_caps():
     assert [song["title"] for song, _ in picks] == ["Focus Flow"]
 
 
-def test_limit_tasks_splits_lines_and_drops_blanks():
-    assert limit_tasks("study\n\n  gym  \n") == (["study", "gym"], 0)
+def test_task_list_is_not_full_below_the_limit():
+    assert not task_list_full(0)
+    assert not task_list_full(MAX_TASKS - 1)
 
 
-def test_limit_tasks_keeps_only_the_first_max_tasks_and_counts_the_rest():
-    text = "\n".join(f"task {i}" for i in range(MAX_TASKS + 3))
-    tasks, dropped = limit_tasks(text)
-    assert tasks == [f"task {i}" for i in range(MAX_TASKS)]
-    assert dropped == 3
-
-
-def test_limit_tasks_on_empty_text():
-    assert limit_tasks("  \n \n") == ([], 0)
+def test_task_list_is_full_at_and_above_the_limit():
+    assert task_list_full(MAX_TASKS)
+    assert task_list_full(MAX_TASKS + 1)

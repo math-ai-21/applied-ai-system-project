@@ -5,7 +5,7 @@ Run with: streamlit run app.py
 
 import streamlit as st
 
-from src.guardrails import MAX_LLM_CALLS, MAX_TASKS, CallBudget, limit_tasks, query_too_long
+from src.guardrails import MAX_LLM_CALLS, MAX_TASKS, CallBudget, query_too_long, task_list_full
 from src.knowledge import load_knowledge
 from src.llm import (
     LLMUnavailable, build_llm_only_prompt, build_plan_prompt, build_rag_prompt, generate,
@@ -110,41 +110,70 @@ def show_llm_only_tab():
             st.caption(reason)
 
 
+def plan_note(items):
+    """One Gemini note for the whole plan: returns (kind, text), or None if no task got a song."""
+    if not any(item["pick"] for item in items):
+        return None
+    if not budget.try_use():  # GUARDRAIL 4, call cap
+        return ("info", f"Reached the limit of {MAX_LLM_CALLS} Gemini calls; showing the songs only.")
+    try:
+        return ("ok", generate(build_plan_prompt(items)))
+    except LLMUnavailable as exc:  # GUARDRAIL 5, LLM-unavailable fallback
+        return ("warning", f"LLM unavailable ({exc}); showing the songs only.")
+
+
 def show_planner():
-    """One song per task from a list of tasks, plus one Gemini note on the whole plan."""
-    text = st.text_area("Your tasks for today, one per line", height=130, key="planner_text")
-    if not st.button("Plan my day"):
-        return
-    tasks, dropped = limit_tasks(text)  # GUARDRAIL 8, task list limit
-    if not tasks:
-        return
-    if dropped:
-        st.info(f"Only the first {MAX_TASKS} tasks were used; {dropped} ignored.")
-    if any(query_too_long(task) for task in tasks):  # GUARDRAIL 3, query length
-        st.error("A task is too long. Please shorten it.")
-        return
+    """A to-do checklist: add tasks, tick them off, get one song per task and a Gemini note."""
+    state = st.session_state
+    state.setdefault("tasks", [])        # [{"id": int, "text": str}]
+    state.setdefault("next_id", 0)
+    state.setdefault("plan", {})         # task id -> plan_day result for that task
+    state.setdefault("plan_note", None)  # (kind, text) for the Gemini note
 
-    plan = plan_day(tasks, retriever, songs)
-    for item in plan:
-        with st.container(border=True):
-            st.markdown(f"**{item['task']}**")
-            if item["pick"] is None:
-                st.caption("No match for this task. Try describing it differently.")
-                continue
+    if task_list_full(len(state.tasks)):  # GUARDRAIL 8, task list limit
+        st.info(f"Task limit reached ({MAX_TASKS}). Remove one to add another.")
+    else:
+        with st.form("add_task", clear_on_submit=True):
+            text = st.text_input("Add a task").strip()
+            added = st.form_submit_button("Add")
+        if added and text:
+            if query_too_long(text):  # GUARDRAIL 3, query length
+                st.error("Task too long. Please shorten it.")
+            else:
+                state.tasks.append({"id": state.next_id, "text": text})
+                state.next_id += 1
+                state.plan, state.plan_note = {}, None
+                st.rerun()
+
+    for task in list(state.tasks):
+        row, remove = st.columns([9, 1])
+        done = state.get(f"done_{task['id']}", False)
+        row.checkbox(f"~~{task['text']}~~" if done else task["text"], key=f"done_{task['id']}")
+        if remove.button("✕", key=f"remove_{task['id']}"):
+            state.tasks.remove(task)
+            state.plan, state.plan_note = {}, None
+            st.rerun()
+        item = state.plan.get(task["id"])
+        if item and item["pick"] is None:
+            row.caption("No match for this task. Try describing it differently.")
+        elif item:
             song, score, _ = item["pick"]
-            st.markdown(f"🎵 {song['title']} by {song['artist']} · score {score:.2f}")
-            st.caption(f"Matched: {item['results'][0][0]['name']}")
+            row.caption(f"🎵 {song['title']} by {song['artist']} · score {score:.2f} "
+                        f"(matched: {item['results'][0][0]['name']})")
 
-    if any(item["pick"] for item in plan):
-        if not budget.try_use():  # GUARDRAIL 4, call cap
-            st.info(f"Reached the limit of {MAX_LLM_CALLS} Gemini calls; showing the songs only.")
-            return
-        try:
-            note = generate(build_plan_prompt(plan))
+    if state.tasks and st.button("Plan my day"):
+        items = plan_day([task["text"] for task in state.tasks], retriever, songs)
+        state.plan = {task["id"]: item for task, item in zip(state.tasks, items)}
+        state.plan_note = plan_note(items)
+        st.rerun()
+
+    if state.plan_note:
+        kind, text = state.plan_note
+        if kind == "ok":
             st.subheader("Your day, explained")
-            st.write(note)
-        except LLMUnavailable as exc:  # GUARDRAIL 5, LLM-unavailable fallback
-            st.warning(f"LLM unavailable ({exc}); showing the songs only.")
+            st.write(text)
+        else:
+            getattr(st, kind)(text)
 
 
 songs, retriever = load_resources()
