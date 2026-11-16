@@ -11,7 +11,7 @@ flowchart LR
         P["Profile builder"]
         REC["Recommender<br/>scores and ranks songs"]
         LLM["Gemini<br/>explains the picks<br/>(LLM-only mode skips retrieval)"]
-        G2{{"Output guardrails<br/>catalog-only picks,<br/>fallback if Gemini fails"}}
+        G2{{"Output guardrails<br/>catalog-only picks (LLM-only mode),<br/>fallback if Gemini fails"}}
     end
 
     subgraph Output
