@@ -5,6 +5,8 @@ Run with: streamlit run app.py
 
 import logging
 
+import altair as alt
+import pandas as pd
 import streamlit as st
 
 from src.guardrails import MAX_LLM_CALLS, MAX_TASKS, CallBudget, query_too_long, task_list_full
@@ -21,7 +23,7 @@ from src.retriever import Retriever, plan_day, recommend_from_query
 setup_logging()
 log = logging.getLogger("src.app")
 
-st.set_page_config(page_title="Music Recommender", page_icon="🎵")
+st.set_page_config(page_title="TaskTunes", page_icon="🎵")
 
 MODE_HELP = """
 - **Samples**: five ready-made listener profiles, scored by the recommender.
@@ -130,6 +132,41 @@ def plan_note(items):
         return ("warning", f"LLM unavailable ({exc}); showing the songs only.")
 
 
+def energy_rows(tasks, plan):
+    """One row per planned task that got a song, in task order: task, song and its energy."""
+    rows = []
+    for order, task in enumerate(tasks, start=1):
+        item = plan.get(task["id"])
+        if item and item["pick"]:
+            song = item["pick"][0]
+            rows.append({"order": order, "task": task["text"], "song": song["title"],
+                         "artist": song["artist"], "energy": song["energy"]})
+    return rows
+
+
+def show_energy_chart(rows):
+    """Draw the energy of each task's song across the day, with a one-line summary."""
+    if len(rows) < 2:
+        return
+    data = pd.DataFrame(rows)
+    x = alt.X("task:N", sort=list(data["task"]), title=None,
+              axis=alt.Axis(labelAngle=0, labelLimit=160, labelFontSize=12))
+    y = alt.Y("energy:Q", scale=alt.Scale(domain=[0, 1]), title="Song energy")
+    tooltip = ["task", "song", "artist", alt.Tooltip("energy:Q", format=".2f")]
+    line = alt.Chart(data).mark_line(color="#7C5CBF", strokeWidth=4, interpolate="monotone")
+    points = alt.Chart(data).mark_circle(size=220, color="#FF8A65", opacity=1)
+    labels = alt.Chart(data).mark_text(dy=-18, fontSize=12, color="#2E2447").encode(text="song")
+    chart = (line.encode(x=x, y=y) + points.encode(x=x, y=y, tooltip=tooltip)
+             + labels.encode(x=x, y=y)).properties(height=280)
+
+    st.subheader("⚡ Energy of your day")
+    st.altair_chart(chart, width="stretch")
+    peak = max(rows, key=lambda row: row["energy"])
+    low = min(rows, key=lambda row: row["energy"])
+    st.caption(f"Peak: {peak['task']} ({peak['song']}, energy {peak['energy']:.2f}) · "
+               f"Calmest: {low['task']} ({low['song']}, energy {low['energy']:.2f})")
+
+
 def show_planner():
     """A to-do checklist: add tasks, tick them off, get one song per task and a Gemini note."""
     state = st.session_state
@@ -178,6 +215,9 @@ def show_planner():
         state.plan_note = plan_note(items)
         st.rerun()
 
+    if state.plan:
+        show_energy_chart(energy_rows(state.tasks, state.plan))
+
     if state.plan_note:
         kind, text = state.plan_note
         if kind == "ok":
@@ -192,7 +232,7 @@ if "budget" not in st.session_state:
     st.session_state.budget = CallBudget()  # GUARDRAIL 4, call cap: one budget per browser session
 budget = st.session_state.budget
 
-st.title("🎵 Music Recommender")
+st.title("TaskTunes 🎵 ")
 st.markdown(MODE_HELP)
 counter = st.empty()  # filled in at the end, so it never lags a call behind
 

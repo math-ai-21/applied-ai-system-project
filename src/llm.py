@@ -130,6 +130,9 @@ def build_plan_prompt(plan) -> str:
         "You are a music assistant planning a listening playlist for someone's day. Use ONLY the "
         "guides and songs below. Do not add songs or facts that are not listed. For each task, say "
         "in one sentence why its song fits, citing the guide.\n\n"
+        "Format each task exactly like this, with a blank line between tasks:\n"
+        "**<task>** → **<song title>** by <artist>\n"
+        "<one sentence on why it fits>\n\n"
         + "\n\n".join(blocks)
-        + "\n\nEnd with one sentence on the overall mood of the day."
+        + "\n\nEnd with one sentence on the overall mood of the day, on its own line."
     )
