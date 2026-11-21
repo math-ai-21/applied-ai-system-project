@@ -1,12 +1,10 @@
 # AI Interactions Log
 
-> **Stretch features only.** Only fill in the sections that apply to stretch features you attempted. If you did not attempt a stretch feature, leave its section blank or delete it. This file is not required for the core project.
+> **Scope:** This log documents AI-assisted stretch features from the original Music Recommender project (Modules 1–3). It is not a complete development log for the later TaskTunes expansion.
 
 ---
 
 ## Agentic Workflow (SF8)
-
-> Document your experience using an AI agent (e.g., Cursor Agent, Claude, Copilot) to make multi-step changes autonomously.
 
 **What task did you give the agent?**
 
@@ -19,8 +17,8 @@ I asked Claude Code to extend the recommender with five new song attributes: pop
 **What did the agent generate or change?**
 
 - The agent read `src/recommender.py`, `data/songs.csv`, `src/main.py`.
-- `data/songs.csv`: It updated the The CSV columns to make sure all 18 songs have `popularity`, `release_decade`, `language`, `vocal_type` and `mood_tags`, with multiple tags separated by `|`.
-- `src/recommender.py`: It made sure `load_songs` parses the new columns (optional, so older CSVs still load).  Also, `score_song` noew scores popularity and decade by closeness (decade drops to 0 at 50 years apart), language and vocal type as exact matches, and mood tags by the share of the user's tags that the song has. Weights are 0.05 for popularity, decade, language and vocal type, and 0.15 for mood tags. Features that a profile leaves out are skipped, and the score is divided by the weights actually used so it still runs 0–1.
+- `data/songs.csv`: It updated the CSV columns to make sure all 18 songs have `popularity`, `release_decade`, `language`, `vocal_type` and `mood_tags`, with multiple tags separated by `|`.
+- `src/recommender.py`: It made sure `load_songs` parses the new columns (optional, so older CSVs still load).  Also, `score_song` now scores popularity and decade by closeness (decade drops to 0 at 50 years apart), language and vocal type as exact matches, and mood tags by the share of the user's tags that the song has. Weights are 0.05 for popularity, decade, language and vocal type, and 0.15 for mood tags. Features that a profile leaves out are skipped, and the score is divided by the weights actually used so it still runs 0–1.
 - `src/main.py`: It added a "Nostalgic Dreamer" profile that uses all the new features.
 - `README.md` and `model_card.md`: it included the short note at the top of each saying they do not account for the challenge changes.
 
